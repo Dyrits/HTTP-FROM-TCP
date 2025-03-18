@@ -5,25 +5,40 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
+	"net"
 	"strings"
 )
 
 const file = "messages.txt"
 
 func main() {
-	reader, err := os.Open(file)
+	listener, err := net.Listen("tcp", ":42069")
 	if err != nil {
-		log.Fatalf("Could not open %s: %s\n", file, err)
+		log.Fatal("An error occurred while listening", err)
+	}
+	fmt.Println("Listening on", listener.Addr())
+
+	defer func(listener net.Listener) {
+		err := listener.Close()
+		if err != nil {
+			log.Fatal("An error occurred while closing the listener", err)
+		}
+		fmt.Println("Listener closed")
+	}(listener)
+
+	for {
+		connection, err := listener.Accept()
+		if err != nil {
+			log.Fatal("An error occurred while accepting the connection", err)
+		}
+		fmt.Println("Accepted connection from:", connection.RemoteAddr())
+		lines := readLines(connection)
+		for line := range lines {
+			fmt.Println(line)
+		}
+		fmt.Println("Closing connection from:", connection.RemoteAddr())
 	}
 
-	fmt.Printf("Reading data from %s\n", file)
-
-	lines := readLines(reader)
-
-	for line := range lines {
-		fmt.Println("read:", line)
-	}
 }
 
 func readLines(reader io.ReadCloser) <-chan string {
@@ -50,7 +65,7 @@ func readLines(reader io.ReadCloser) <-chan string {
 				if errors.Is(err, io.EOF) {
 					break
 				}
-				fmt.Printf("error: %s\n", err.Error())
+				fmt.Println("An error occurred while reading from the connection", err)
 				return
 			}
 			parts := strings.Split(string(bytes), "\n")
