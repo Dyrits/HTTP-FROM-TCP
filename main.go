@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -8,41 +9,57 @@ import (
 	"strings"
 )
 
+const file = "messages.txt"
+
 func main() {
-	file, err := os.Open("messages.txt")
+	reader, err := os.Open(file)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Could not open %s: %s\n", file, err)
 	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}(file)
 
-	var line string
+	fmt.Printf("Reading data from %s\n", file)
 
-	for {
-		bytes := make([]byte, 8)
-		_, err := file.Read(bytes)
+	lines := readLines(reader)
 
-		if err != nil {
-			if err == io.EOF {
-				if line != "" {
-					fmt.Printf("read: %s\n", line)
-				}
-				break
+	for line := range lines {
+		fmt.Println("read:", line)
+	}
+}
+
+func readLines(reader io.ReadCloser) <-chan string {
+	lines := make(chan string)
+	go func() {
+
+		defer func(reader io.ReadCloser) {
+			err := reader.Close()
+			if err != nil {
+				fmt.Printf("error: %s\n", err)
 			}
-			log.Fatal(err)
+		}(reader)
+
+		defer close(lines)
+
+		content := ""
+		for {
+			bytes := make([]byte, 8, 8)
+			_, err := reader.Read(bytes)
+			if err != nil {
+				if content != "" {
+					lines <- content
+				}
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				fmt.Printf("error: %s\n", err.Error())
+				return
+			}
+			parts := strings.Split(string(bytes), "\n")
+			if len(parts) == 2 {
+				lines <- fmt.Sprintf("%s%s", content, parts[0])
+				content = ""
+			}
+			content += parts[len(parts)-1]
 		}
-
-		parts := strings.Split(string(bytes), "\n")
-
-		if len(parts) == 2 {
-			fmt.Printf("read: %s%s\n", line, parts[0])
-			line = ""
-		}
-
-		line += parts[len(parts)-1]
-	}
+	}()
+	return lines
 }
