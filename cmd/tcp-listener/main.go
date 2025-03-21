@@ -44,7 +44,6 @@ func main() {
 func readLines(reader io.ReadCloser) <-chan string {
 	lines := make(chan string)
 	go func() {
-
 		defer func(reader io.ReadCloser) {
 			err := reader.Close()
 			if err != nil {
@@ -56,7 +55,7 @@ func readLines(reader io.ReadCloser) <-chan string {
 
 		content := ""
 		for {
-			bytes := make([]byte, 8, 8)
+			bytes := make([]byte, 8)
 			_, err := reader.Read(bytes)
 			if err != nil {
 				if content != "" {
@@ -69,11 +68,17 @@ func readLines(reader io.ReadCloser) <-chan string {
 				return
 			}
 			parts := strings.Split(string(bytes), "\n")
-			if len(parts) == 2 {
-				lines <- fmt.Sprintf("%s%s", content, parts[0])
-				content = ""
+			for index, part := range parts {
+				if index == len(parts)-1 {
+					content += part
+				} else {
+					lines <- content + part
+					content = ""
+				}
 			}
-			content += parts[len(parts)-1]
+		}
+		if content != "" {
+			lines <- content
 		}
 	}()
 	return lines
