@@ -1,15 +1,23 @@
 package request
 
 import (
+	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"slices"
 	"strings"
 )
 
+type RequestState int
+
+const (
+	Initialized RequestState = iota
+	Done
+)
+
 type Request struct {
 	RequestLine RequestLine
+	State       RequestState
 }
 
 type RequestLine struct {
@@ -21,30 +29,45 @@ type RequestLine struct {
 var methods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	data, err := io.ReadAll(reader)
+	// Note: Instead of reading by chunks, we can use a buffered reader, which is more efficient.
+	buffer := bufio.NewReader(reader)
+	request := &Request{State: Initialized}
 
-	if err != nil {
-		log.Fatal(err)
+	for request.State != Done {
+		// Read until a newline is found:
+		line, err := buffer.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
+
+		// Parse the line and get the number of bytes parsed:
+		parsed, err := request.parse([]byte(line))
+		if err != nil {
+			return nil, err
+		}
+
+		// If more than 0 bytes were parsed, the request is done:
+		if parsed > 0 {
+			request.State = Done
+		}
 	}
 
-	lines := strings.Split(string(data), "\r\n")
-	line, err := RequestLineFromString(lines[0])
-
-	if err != nil {
-		return nil, err
+	if request.State != Done {
+		return nil, fmt.Errorf("error: request parsing failed")
 	}
 
-	return &Request{
-		RequestLine: *line,
-	}, nil
+	return request, nil
 }
 
 func RequestLineFromString(line string) (*RequestLine, error) {
-	if len(line) != 3 {
+	parts := strings.Split(line, " ")
+
+	if len(parts) != 3 {
 		return nil, fmt.Errorf("invalid number of parts in request line")
 	}
-
-	parts := strings.Split(line, " ")
 
 	method, target, version := parts[0], parts[1], parts[2]
 
@@ -61,4 +84,33 @@ func RequestLineFromString(line string) (*RequestLine, error) {
 		RequestTarget: target,
 		Method:        method,
 	}, nil
+}
+
+func (request *Request) parse(data []byte) (int, error) {
+	if request.State == Done {
+		return 0, fmt.Errorf("error: trying to read data in a done state")
+	}
+
+	if request.State != Initialized {
+		return 0, fmt.Errorf("error: unknown state")
+	}
+
+	// Convert the data to a string and split it into lines:
+	lines := strings.SplitN(string(data), "\r\n", 2)
+	if len(lines) == 0 {
+		return 0, nil
+	}
+
+	// Parse the first line as the request line:
+	line, err := RequestLineFromString(lines[0])
+	if err != nil {
+		return 0, err
+	}
+
+	// Update the request with the parsed request line:
+	request.RequestLine = *line
+	request.State = Done
+
+	// Return the number of bytes read:
+	return len(lines[0]) + 2, nil
 }
