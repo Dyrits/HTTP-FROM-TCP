@@ -1,12 +1,10 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"io"
+	"github.com/Dyrits/HTTP-FROM-TCP/internal/request"
 	"log"
 	"net"
-	"strings"
 )
 
 const file = "messages.txt"
@@ -32,54 +30,12 @@ func main() {
 			log.Fatal("An error occurred while accepting the connection", err)
 		}
 		fmt.Println("Accepted connection from:", connection.RemoteAddr())
-		lines := readLines(connection)
-		for line := range lines {
-			fmt.Println(line)
+		request, err := request.RequestFromReader(connection)
+		if err != nil {
+			log.Println("An error occurred while reading from the connection", err)
 		}
+		line := request.RequestLine
+		line.Print()
 		fmt.Println("Closing connection from:", connection.RemoteAddr())
 	}
-
-}
-
-func readLines(reader io.ReadCloser) <-chan string {
-	lines := make(chan string)
-	go func() {
-		defer func(reader io.ReadCloser) {
-			err := reader.Close()
-			if err != nil {
-				fmt.Printf("error: %s\n", err)
-			}
-		}(reader)
-
-		defer close(lines)
-
-		content := ""
-		for {
-			bytes := make([]byte, 8)
-			_, err := reader.Read(bytes)
-			if err != nil {
-				if content != "" {
-					lines <- content
-				}
-				if errors.Is(err, io.EOF) {
-					break
-				}
-				fmt.Println("An error occurred while reading from the connection", err)
-				return
-			}
-			parts := strings.Split(string(bytes), "\n")
-			for index, part := range parts {
-				if index == len(parts)-1 {
-					content += part
-				} else {
-					lines <- content + part
-					content = ""
-				}
-			}
-		}
-		if content != "" {
-			lines <- content
-		}
-	}()
-	return lines
 }

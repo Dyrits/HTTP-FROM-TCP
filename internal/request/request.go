@@ -26,6 +26,13 @@ type RequestLine struct {
 	Method        string
 }
 
+func (line *RequestLine) Print() {
+	fmt.Println("Request line: ")
+	fmt.Println("- Method:", line.Method)
+	fmt.Println("- Target:", line.RequestTarget)
+	fmt.Println("- Version:", line.HttpVersion)
+}
+
 var methods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
@@ -80,7 +87,7 @@ func RequestLineFromString(line string) (*RequestLine, error) {
 	}
 
 	return &RequestLine{
-		HttpVersion:   version,
+		HttpVersion:   strings.TrimPrefix(version, "HTTP/"),
 		RequestTarget: target,
 		Method:        method,
 	}, nil
