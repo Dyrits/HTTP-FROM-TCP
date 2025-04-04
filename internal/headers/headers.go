@@ -28,7 +28,7 @@ func (headers Headers) Parse(data []byte) (number int, done bool, err error) {
 
 	// Split the line into key and value, using a regular expression:
 	line := string(data)[:CRLF]
-	expression := regexp.MustCompile(`^([^:\s]+):\s*(.*)\s*$`)
+	expression := regexp.MustCompile(`^([^:\s]+):\s*([^\s].*?)\s*$`)
 	matches := expression.FindStringSubmatch(line)
 
 	if len(matches) != 3 {
