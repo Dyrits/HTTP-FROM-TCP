@@ -71,4 +71,14 @@ func TestHeadersParser(context *testing.T) {
 	require.Error(context, err)
 	assert.Equal(context, 0, number)
 	assert.False(context, done)
+
+	// Test: Append value to an existing header
+	headers = NewHeaders()
+	headers["set-browser"] = "firefox"
+	data = []byte("Set-Browser: chrome\r\n\r\n")
+	number, done, err = headers.Parse(data)
+	require.NoError(context, err)
+	require.NotNil(context, headers)
+	assert.Equal(context, "firefox,chrome", headers["set-browser"])
+	assert.False(context, done)
 }

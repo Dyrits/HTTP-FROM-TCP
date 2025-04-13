@@ -39,8 +39,14 @@ func (headers Headers) Parse(data []byte) (number int, done bool, err error) {
 	key := strings.ToLower(matches[1])
 	value := matches[2]
 
-	// Add the key/value pair to the Headers map
-	headers[key] = value
+	// Add the key/value pair to the Headers map:
+	if existing, exists := headers[key]; exists {
+		// If the key already exists, concatenate the values:
+		headers[key] = existing + "," + value
+	} else {
+		// Otherwise, just set the value:
+		headers[key] = value
+	}
 
 	// Return the number of bytes consumed, false for done, and nil for err
 	return CRLF + 2, false, nil
